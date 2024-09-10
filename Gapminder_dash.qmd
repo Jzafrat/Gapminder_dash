@@ -1,0 +1,182 @@
+---
+title : "Gapminder : Life Expectancy 2007"
+format: dashboard
+theme: lux
+---
+
+```{r}
+#loading packages
+if(!require(pacman)) install.packages(pacman)
+pacman::p_load(tidyverse,
+               gapminder,
+               plotly,
+               reactable,
+               bslib,
+               bsicons,
+               shiny,
+               rnaturalearth,
+               countrycode,
+               htmltools)
+```
+
+```{r echo=FALSE, message=FALSE, include=FALSE}
+gap07 <- gapminder %>% 
+  filter(year==2007)
+
+highest_lifeExp_country <- gap07 %>% 
+  arrange(-lifeExp) %>% 
+  head(1) %>% 
+  pull(country)
+
+highest_lifeExp_value <- gap07 %>% 
+  arrange(-lifeExp) %>% 
+  head(1) %>% 
+  pull(lifeExp) %>% 
+  round(1)
+
+lowest_lifeExp_country <- gap07 %>% 
+  arrange(lifeExp) %>% 
+  head(1) %>% 
+  pull(country)
+
+lowest_lifeExp_value <- gap07 %>% 
+  arrange(lifeExp) %>% 
+  head(1) %>% 
+  pull(lifeExp) %>% 
+  round(1)
+
+average_lifeExp_value <- gap07 %>% 
+  summarize(weighted_average = sum(lifeExp*pop)/sum(pop)) %>% 
+  round(1)
+```
+
+
+# Home 
+
+## {height=25%}
+
+```{r}
+value_box(
+  title = "Highest life expectancy",
+  value = highest_lifeExp_value,
+  showcase = bsicons::bs_icon("heart"),
+  theme = value_box_theme(bg = "lightblue"),
+  p(paste0("(" ,highest_lifeExp_country, ")"))
+)
+```
+
+```{r}
+value_box(
+  title = "Lowest life expectancy",
+  value = lowest_lifeExp_value,
+  showcase = bsicons::bs_icon("thermometer-low"),
+  theme = value_box_theme(bg = "darkblue"),
+  p(paste0("(" ,lowest_lifeExp_country, ")"))
+)
+```
+
+```{r}
+value_box(
+  title = "Average",
+  value = average_lifeExp_value,
+  showcase = bsicons::bs_icon("subtract"),
+  theme = value_box_theme(bg = "green")
+)
+
+# Find icons https://icons.getbootstrap.com/icons/tornado/
+```
+
+## {height=75%}
+
+### {width=70%}
+
+```{r include=FALSE, echo=FALSE, message=FALSE}
+
+country_shapes <- rnaturalearth::ne_countries()
+
+gap07 <- gap07 %>% 
+  mutate(country_code = countrycode(country, origin = "country.name", destination = "iso3c"))
+  
+#setdiff(gap07$country_code, country_shapes$adm0_a3)
+
+gap07_shapes <- left_join(country_shapes, gap07, by = c("adm0_a3" = "country_code")) %>% 
+  mutate(tooltip_label = paste(country, round(lifeExp, 1),
+                               sep = ": "))
+
+gapmap <- ggplot(data = gap07_shapes,
+       mapping = aes(fill = lifeExp,
+                     text = tooltip_label)) +
+  geom_sf() +
+  theme_void() +
+  theme(legend.position = "none") 
+
+gapmap_ggpllotly <- ggplotly(gapmap, tooltip = "text")
+  
+```
+
+```{r title = "Map of countries by life expectancy"}
+gapmap_ggpllotly
+```
+
+
+### {width=30%}
+
+```{r include=FALSE, echo=FALSE, message=FALSE}
+
+top20_countries <- gap07 %>% 
+  arrange(-lifeExp) %>% 
+  head(20) %>% 
+  mutate(tooltip_label = paste(country, round(lifeExp, 1),
+                               sep = ": ")) %>% 
+  ggplot(aes(y = reorder(country, lifeExp), x = lifeExp,
+             fill = lifeExp, text = tooltip_label)) +
+  geom_col() +
+  geom_text(aes(label = round(lifeExp, 1)),
+            nudge_x = -10,
+            color = "white") +
+  labs(y = "Country",
+       x = "Life Expectancy") +
+  theme(legend.position = "none")
+
+top20_countries_ggplotly <- ggplotly(top20_countries, tooltip = "text")
+
+```
+
+
+```{r title = "Top 25 countries by life expectancy"}
+top20_countries_ggplotly
+
+```
+
+# Download data
+
+The date used in this dashboard is shown below and can be downloaded as a csv.
+
+```{r}
+
+htmltools::browsable(
+  tagList(
+    reactable(gapminder, 
+              searchable = TRUE,
+              filterable = TRUE,
+              elementId = "gapminder-table"),
+tags$div(
+      tags$button("Download as CSV",
+                  onclick = htmlwidgets::JS("Reactable.downloadDataCSV('gapminder-table')"))
+  )
+))
+
+```
+
+
+# About
+
+This data comes from r "Gapminder" package and was sources by the Gapminder Foundation.
+
+Gapminder identifies systematic misconceptions about important global trends and proportions and uses reliable data to develop easy to understand teaching materials to rid people of their misconceptions.
+
+Gapminder is an independent Swedish foundation with no political, religious, or economic affiliations.
+
+An example of what the Gapminder Foundation does can be find here: 
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/jbkSRLYSojo?si=Oezlzyu7SVVYe3PJ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
